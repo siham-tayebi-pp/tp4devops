@@ -1,4 +1,4 @@
-
+```groovy
 def dockerImage
 
 pipeline {
@@ -31,9 +31,7 @@ pipeline {
 
         stage('Test image') {
             steps {
-                script {
-                    echo "Tests passed"
-                }
+                echo 'Tests passed'
             }
         }
 
@@ -49,5 +47,20 @@ pipeline {
                 }
             }
         }
+
+        stage('Deploy image') {
+            steps {
+                bat '''
+                    @echo off
+                    set "DOCKER_HOST=npipe:////./pipe/dockerDesktopLinuxEngine"
+
+                    docker rm -f tp4 2>nul
+                    docker run -d --name tp4 -p 8082:80 %REGISTRY%:%BUILD_NUMBER%
+
+                    if errorlevel 1 exit /b 1
+                '''
+            }
+        }
     }
 }
+```
