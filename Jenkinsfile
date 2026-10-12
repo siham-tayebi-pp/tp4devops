@@ -1,4 +1,3 @@
-```groovy
 def dockerImage
 
 pipeline {
@@ -63,4 +62,3 @@ pipeline {
         }
     }
 }
-```
