@@ -1,0 +1,66 @@
+
+name: CI-CD TP3
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    name: Build et push de l'image
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Nom d'image en minuscules
+        run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+
+      - name: Login GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build et push
+        uses: docker/build-push-action@v6
+        with:
+          context: ./src/main/java/net/tayebi
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/tp4devops:latest
+            ghcr.io/${{ github.repository_owner }}/tp4devops:${{ github.sha }}
+
+  deploy:
+    name: Déploiement sur la VM
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Nom d'image en minuscules
+        run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+
+      - name: Déployer via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USER: ${{ github.actor }}
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          port: ${{ secrets.VM_PORT }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          envs: IMAGE,GHCR_TOKEN,GHCR_USER
+          script: |
+            echo "$GHCR_TOKEN" | sudo docker login ghcr.io -u "$GHCR_USER" --password-stdin
+            sudo docker pull "$IMAGE:latest"
+            sudo docker rm -f webapp || true
+            sudo docker run -d --name webapp --restart unless-stopped -p 80:80 "$IMAGE:latest"
+            sudo docker image prune -f
